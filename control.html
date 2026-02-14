@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音乐播放器 - 控制端</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .upload-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        input[type="text"], input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        .playlists-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .playlist-item {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        
+        .song-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .settings-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>音乐播放器 - 控制端</h1>
+        
+        <!-- 音乐上传区域 -->
+        <div class="upload-section">
+            <h2>上传音乐</h2>
+            <form id="uploadForm">
+                <div class="form-group">
+                    <label for="title">歌曲名称 *</label>
+                    <input type="text" id="title" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="artist">歌手 *</label>
+                    <input type="text" id="artist" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="album">所属专辑</label>
+                    <input type="text" id="album">
+                </div>
+                
+                <div class="form-group">
+                    <label for="coverFile">封面文件 (可选)</label>
+                    <input type="file" id="coverFile" accept="image/*">
+                </div>
+                
+                <div class="form-group">
+                    <label for="audioFile">音频文件 *</label>
+                    <input type="file" id="audioFile" accept="audio/*" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="lyricsFile">歌词文件 (.lrc 或 .ttml)</label>
+                    <input type="file" id="lyricsFile" accept=".lrc,.ttml">
+                </div>
+                
+                <button type="submit">上传音乐</button>
+            </form>
+        </div>
+        
+        <!-- 歌单管理区域 -->
+        <div class="playlists-section">
+            <h2>歌单管理</h2>
+            <div class="form-group">
+                <input type="text" id="playlistName" placeholder="输入新歌单名称">
+                <button onclick="createPlaylist()">创建歌单</button>
+            </div>
+            
+            <div id="playlistsList"></div>
+        </div>
+        
+        <!-- 播放设置区域 -->
+        <div class="settings-section">
+            <h2>播放设置</h2>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="allowSkip" checked> 允许用户切歌
+                </label>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="allowSeek" checked> 允许用户调整播放进度
+                </label>
+            </div>
+            <button onclick="updateSettings()">更新设置</button>
+        </div>
+    </div>
+
+    <script>
+        // 上传音乐
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const title = document.getElementById('title').value;
+            const artist = document.getElementById('artist').value;
+            const album = document.getElementById('album').value;
+            const coverFile = document.getElementById('coverFile').files[0];
+            const audioFile = document.getElementById('audioFile').files[0];
+            const lyricsFile = document.getElementById('lyricsFile').files[0];
+            
+            // 验证必要字段
+            if (!title || !artist || !audioFile) {
+                alert('音乐信息不全，无法上传');
+                return;
+            }
+            
+            // 使用FormData上传文件
+            const formData = new FormData();
+            if (coverFile) formData.append('coverFile', coverFile);
+            if (audioFile) formData.append('audioFile', audioFile);
+            if (lyricsFile) formData.append('lyricsFile', lyricsFile);
+            
+            try {
+                // 首先上传文件
+                const uploadResponse = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const uploadResult = await uploadResponse.json();
+                
+                if (!uploadResponse.ok) {
+                    throw new Error(uploadResult.error || '上传失败');
+                }
+                
+                // 获取上传后的文件信息
+                const coverFileName = uploadResult.files.coverFile ? uploadResult.files.coverFile.filename : '';
+                const audioFileName = uploadResult.files.audioFile ? uploadResult.files.audioFile.filename : '';
+                const lyricsFileName = uploadResult.files.lyricsFile ? uploadResult.files.lyricsFile.filename : '';
+                
+                // 然后保存音乐信息
+                const musicData = {
+                    title,
+                    artist,
+                    album,
+                    coverFile: coverFileName,
+                    audioFile: audioFileName,
+                    lyricsFile: lyricsFileName
+                };
+                
+                const response = await fetch('/api/music', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(musicData)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert('音乐上传成功！');
+                    document.getElementById('uploadForm').reset();
+                } else {
+                    alert(result.error || '音乐保存失败');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('上传过程中出现错误: ' + error.message);
+            }
+        });
+        
+        // 创建歌单
+        async function createPlaylist() {
+            const name = document.getElementById('playlistName').value;
+            
+            if (!name.trim()) {
+                alert('请输入歌单名称');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/playlist', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert('歌单创建成功！');
+                    document.getElementById('playlistName').value = '';
+                    loadPlaylists();
+                } else {
+                    alert(result.error || '创建歌单失败');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('创建歌单时出现错误: ' + error.message);
+            }
+        }
+        
+        // 加载并显示歌单
+        async function loadPlaylists() {
+            try {
+                const response = await fetch('/api/playlists');
+                const playlists = await response.json();
+                
+                const playlistsContainer = document.getElementById('playlistsList');
+                playlistsContainer.innerHTML = '';
+                
+                playlists.forEach(playlist => {
+                    const playlistElement = document.createElement('div');
+                    playlistElement.className = 'playlist-item';
+                    playlistElement.innerHTML = `
+                        <h3>${playlist.name}</h3>
+                        <p>描述: ${playlist.description || '无描述'}</p>
+                        <p>歌曲数量: ${playlist.songs.length}</p>
+                        <button onclick="editPlaylist(${playlist.id})">编辑歌单</button>
+                        <button onclick="deletePlaylist(${playlist.id})">删除歌单</button>
+                    `;
+                    playlistsContainer.appendChild(playlistElement);
+                });
+            } catch (error) {
+                console.error('Error loading playlists:', error);
+            }
+        }
+        
+        // 编辑歌单
+        async function editPlaylist(id) {
+            // 这里可以实现更复杂的歌单编辑功能
+            const newName = prompt('请输入新的歌单名称:');
+            if (newName) {
+                try {
+                    const response = await fetch(`/api/playlist/${id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ name: newName })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok) {
+                        alert('歌单更新成功！');
+                        loadPlaylists();
+                    } else {
+                        alert(result.error || '更新歌单失败');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('更新歌单时出现错误: ' + error.message);
+                }
+            }
+        }
+        
+        // 删除歌单
+        async function deletePlaylist(id) {
+            if (confirm('确定要删除这个歌单吗？')) {
+                try {
+                    const response = await fetch(`/api/playlist/${id}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok) {
+                        alert('歌单删除成功！');
+                        loadPlaylists();
+                    } else {
+                        alert(result.error || '删除歌单失败');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('删除歌单时出现错误: ' + error.message);
+                }
+            }
+        }
+        
+        // 更新播放设置
+        async function updateSettings() {
+            const allowSkip = document.getElementById('allowSkip').checked;
+            const allowSeek = document.getElementById('allowSeek').checked;
+            
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ allowSkip, allowSeek })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert('播放设置更新成功！');
+                } else {
+                    alert(result.error || '更新设置失败');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('更新设置时出现错误: ' + error.message);
+            }
+        }
+        
+        // 页面加载时初始化
+        window.onload = function() {
+            loadPlaylists();
+        };
+    </script>
+</body>
+</html>
